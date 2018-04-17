@@ -1,55 +1,28 @@
 import random
-
-### CONFIG ################################
-BIDIR = True 
-
-### LAYOUT ################################
-NODES = {'a', 'b', 'c', 'd'}
-EDGES = {
-	'ab',
-	'bc'
-}
-
-### ALGORITHM #############################
-
-"""
-The following functions are exposed for your use
-
-def neighbours():
-	returns a set of the names for neighbours of the `current` node
-	
-def send(dest, data):
-	sends `data` to the node given the name in `dest`
-"""	
-
-# called once per node before algorithm start
-def setup(my_name, my_state):
-	global neighbours
-	
-	print('INITIATE', my_name, my_state)
-	print(neighbours())
-	for n in neighbours() | {my_name}:
-		send(n, (n,2,3))
-	pass
-
-# represents a message arriving at a destination
-def recv(my_name, my_state, sender_name, msg_tuple):
-	print('RECV {}-->{} data:[{}]'.format(sender_name, my_name, msg_tuple))
-	pass
-	
+import alg	
+import sys
 	
 #################################### INTERNALS
 
+	
+def outgoing():
+	global sender, edges_out
+	return set(edges_out[sender])
+	
+	
+def incoming():
+	global sender, edges_in
+	return set(edges_in[sender])
+	
+	
 def neighbours():
-	global sender
-	global edges
-	return set(edges[sender])
+	return outgoing() | incoming()
+	
 
 def send(dest, data):
-	global todo
-	global sender
-	print('SEND {}-->{} data:[{}]'.format(sender, dest, data))
-	todo.append((1, dest, sender, data))
+	global flying_messages, sender
+	print('SEND {}-->  {} data: <{}>'.format(sender, dest, data))
+	flying_messages.append((1, dest, sender, data))
 
 tasks = [
 	0, #init (0, name)
@@ -57,46 +30,66 @@ tasks = [
 ]
 
 def assertions():
-	assert(type(NODES) is set)
-	assert(type(EDGES) is set)
+	assert(type(alg.NODES) is set)
+	assert(type(alg.EDGES) is set)
+	for a, b in alg.EDGES:
+		assert(a in alg.NODES)
+		assert(b in alg.NODES)
+		
+		
+alg.incoming = incoming		
+alg.outgoing = outgoing		
+alg.neighbours = neighbours
+alg.send = send
 	
-
-edges = 0
-sender = 0
-todo = []
-
-
 def go():
 	global sender
-	global edges
-	global todo
-	global EDGES, NODES
-
-	assertions()
-	if BIDIR:
-		EDGES = EDGES | {e[1] + e[0] for e in EDGES}
-	edges = {node: {edge[1] for edge in EDGES if edge[0] == node} for node in NODES}
-	print("edge set", edges)
-	states = {k: dict() for k in NODES}
-	random.seed(540)
-	for n in NODES:
-		sender = n
-		setup(n, states[n])
-	todo = []
+	global edges_out, edges_in
+	global flying_messages	
 	
-	while len(todo) > 0:
-		i = random.randint(0, len(todo)-1)
-		print('i', i)
-		print('todo:', todo)
-		work = todo.pop(i)
-		if work[0] == 0:
+	flying_messages = []
+	assertions()
+	if alg.BIDIR:
+		alg.EDGES = alg.EDGES | {e[1] + e[0] for e in alg.EDGES}
+	edges_out = {node: {edge[1] for edge in alg.EDGES if edge[0] == node} for node in alg.NODES}
+	edges_in = {node: {edge[0] for edge in alg.EDGES if edge[1] == node} for node in alg.NODES}
+	
+	def get_msg():
+		i = random.randint(0, len(flying_messages)-1)
+		if alg.FIFO:
+			# if there is an earlier message on the same channel, send that instead
+			m = flying_messages[i]
+			m_tup = (m[2], m[1])
+			for j in range(0, i+1):
+				m2 = flying_messages[j]
+				if m_tup == (m2[2], m2[1]):
+					return flying_messages.pop(j)
+		return flying_messages.pop(i)
+		
+	states = {k: dict() for k in alg.NODES}
+	random.seed(540)
+	
+	for n in alg.NODES:
+		sender = n
+		alg.SETUP(n, states[n])
+	for n in alg.INITIATORS:
+		sender = n
+		alg.INITIATE(n, states[n])
+	
+	while len(flying_messages) > 0:
+		msg = get_msg()
+		if msg[0] == 0:
 			# init
-			sender = work[1]
-			initiate(work[1], states[work[1]])
-		if work[0] == 1:
+			sender = msg[1]
+			initiate(msg[1], states[msg[1]])
+		if msg[0] == 1:
 			# send
-			sender = work[1]
-			recv(work[1], states[work[1]], work[2], work[3])		
+			sender = msg[1]
+			
+			print('RECV {}  -->{} data: <{}>'.format(msg[2], msg[1], msg[3]))
+			alg.RECV(msg[1], states[msg[1]], msg[2], msg[3])
+			
+
 go()
 			
 	
