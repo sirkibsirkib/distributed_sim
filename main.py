@@ -1,8 +1,19 @@
 import random
-import alg	
 import sys
 	
 #################################### INTERNALS
+if len(sys.argv) != 3:
+	print(("usage: python3 ./main.py <alg> <seed>\n"
+		   "where: \n"
+		   "       <alg> is the module name you'd like to import, in the same dir as `main`\n"
+		   "       <seed> is the random seed you want for the sim\n"))
+	sys.exit(0)
+else:
+	print(":: importing module `{}` as the algorithm".format(sys.argv[1]))
+	exec("import {} as alg".format(sys.argv[1]))
+	seed_num = int(sys.argv[2])
+	print(":: using seed {}".format(seed_num))
+	print()
 
 	
 def outgoing():
@@ -67,7 +78,7 @@ def go():
 		return flying_messages.pop(i)
 		
 	states = {k: dict() for k in alg.NODES}
-	random.seed(540)
+	random.seed(seed_num)
 	
 	for n in alg.NODES:
 		sender = n
